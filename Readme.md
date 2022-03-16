@@ -55,7 +55,7 @@ Each 'leaf' folder within the folder structure represents a genome from MycoCosm
 
 ### Optional: re-use data
 
-If you already have downloaded data, you can simply use your local copy of the files instead of downloading them. This makes it easier to update with new genomes. First, use option `--getprevious`, which will scan a base folder with previous results and create a file called `previously_downloaded_files.tsv`. Use this file with option `--previous` to skip files already downloaded (experimental)
+If you already have downloaded data, you can simply use your local copy of the files instead of downloading them. This makes it easier to update with new genomes. First, use option `--getprevious`, which will scan a base folder with previous results and create a file called `previously_downloaded_files.tsv`. Use this file with option `--previous` to skip files already downloaded
 
 ## Known limitations, notes
 
