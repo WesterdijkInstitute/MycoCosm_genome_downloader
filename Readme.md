@@ -26,7 +26,7 @@ Obtain the [list of genomes](https://mycocosm.jgi.doe.gov/ext-api/mycocosm/catal
 python mycocosm_genome_downloader.py --getgenomelist --getxml
 ```
 
-The list of genomes is a comma-separated value file which enlists all current projects ("**portals**") in MycoCosm ( `MycoCosm_Genome_list.csv`, Note: it uses ISO-8859-15 encoding); The list of files is stored as `MycoCosm_data.xml` (Note: this is ~40Mb file which may take several tries to download and is re-formatted to be human-readable).
+The list of genomes is a comma-separated value file which enlists all current projects ("**portals**") in MycoCosm (`MycoCosm_Genome_list.csv`, Note: it uses ISO-8859-15 encoding); The list of files is stored as `MycoCosm_data.xml` (Note: this is ~40Mb file which may take several tries to download. After downloading, it is re-formatted to be human-readable).
 
 These files will be stored in the folder specified by the `--outputfolder` argument (default: 'output'). You will need your credentials to retrieve the file list.
 
@@ -55,7 +55,7 @@ Each 'leaf' folder within the folder structure represents a genome from MycoCosm
 
 ### Optional: re-use data
 
-If you already have downloaded data, you can simply use your local copy of the files instead of downloading them. This makes it easier to update with new genomes, use option `--getprevious`, which will scan a base folder with previous results and create a file called `previously_downloaded_files.tsv`. Use this file with option `--previous` to skip files already downloaded (experimental)
+If you already have downloaded data, you can simply use your local copy of the files instead of downloading them. This makes it easier to update with new genomes. First, use option `--getprevious`, which will scan a base folder with previous results and create a file called `previously_downloaded_files.tsv`. Use this file with option `--previous` to skip files already downloaded (experimental)
 
 ## Known limitations, notes
 
@@ -83,7 +83,7 @@ There are usually a few files to choose from in the "Filtered Models ('best')" f
 * If we have two `gff3` (or two `gff`) files, prefer the most recent
 
 
-### Ignored files
+### Ignored assembly files / portals
 
 * Files with `MitoAssembly`, `MitoScaffolds`, `PrimaryAssemblyScaffolds` or `SecondaryAssemblyScaffolds` in their name
 * Excluded assemblies (hardcoded). Ignore these filenames as they're not related to assemblies, are old versions or
