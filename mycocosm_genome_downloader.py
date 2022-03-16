@@ -766,11 +766,11 @@ if __name__ == "__main__":
                 # File already there, skipping
                 pre_existing += 1
             else:
-                if asm in location_previous:
+                if fungus.assembly_file in location_previous:
                     try:
-                        shutil.copy(location_previous[asm], output_folder)
+                        shutil.copy(location_previous[fungus.assembly_file], output_folder)
                     except:
-                        sys.exit("Error: cannot copy {} into {}".format(location_previous[asm], output_folder))
+                        sys.exit("Error: cannot copy {} into {}".format(location_previous[fungus.assembly_file], output_folder))
                     else:
                         copied += 1
                 else:
@@ -783,11 +783,11 @@ if __name__ == "__main__":
             if gff.is_file() and gff.stat().st_size > 0.9*fungus.gff_size:
                 pre_existing += 1
             else: 
-                if gff in location_previous:
+                if fungus.gff_file in location_previous:
                     try:
-                        shutil.copy(location_previous[gff], output_folder)
+                        shutil.copy(location_previous[fungus.gff_file], output_folder)
                     except:
-                        sys.exit("Error: cannot copy {} into {}".format(location_previous[gff], output_folder))
+                        sys.exit("Error: cannot copy {} into {}".format(location_previous[fungus.gff_file], output_folder))
                     else:
                         copied += 1
                 else:
