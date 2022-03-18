@@ -1,0 +1,7 @@
+--taxon fungi
+#--genefinding-tool none
+--minimal
+#--enable-nrps-pks
+# Helps with some very short MIBiG entries:
+#--minlength 10
+--skip-zip-file
