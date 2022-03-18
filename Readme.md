@@ -1,6 +1,10 @@
 # MycoCosm genome downloader
 
+(Note: This is a static, unmaintained version of the script kept here for archival purposes)
+
 Helps to download genomes (fasta + gff) files from MycoCosm.
+
+For detecting biosynthetic regions using fungiSMASH on all downloaded data, see the companion
 
 
 # Requirements
@@ -89,3 +93,8 @@ There are usually a few files to choose from in the "Filtered Models ('best')" f
 * Excluded assemblies (hardcoded). Ignore these filenames as they're not related to assemblies, are old versions or
  are assemblies of meta-samples: "1034997.Tuber_borchii_Tbo3840.standard.main.scaffolds.fasta.gz", "Spofi1.draft.mito.scaffolds.fasta.gz", "Patat1.draft.mito.scaffolds.fasta.gz", "PleosPC9_1_Assembly_scaffolds.fasta.gz", "Neuhi1_PlasmidAssemblyScaffolds.fasta.gz", "CocheC5_1_assembly_scaffolds.fasta.gz", "Alternaria_brassicicola_masked_assembly.fasta.gz", "Aciri1_meta_AssemblyScaffolds.fasta.gz", "Rhoto_IFO0880_2_AssemblyScaffolds.fasta.gz"
 * Ignored portals (hardcoded). Metaprojects or old versions: "Rhoto_IFO0880_2", "Aciri1_meta", "Pospl1"
+
+
+## Author
+
+[https://github.com/jorgecnavarrom](https://github.com/jorgecnavarrom)

@@ -45,7 +45,7 @@ from collections import defaultdict
 import shutil
 
 __author__ = "Jorge Navarro"
-__email__ = "j.navarro@wi.knaw.nl"
+__contact__ = "github.com/jorgecnavarrom"
 __version__ = "v1.0"
 
 

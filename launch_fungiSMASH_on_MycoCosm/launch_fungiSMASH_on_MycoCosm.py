@@ -26,6 +26,10 @@ with the assembly and the other with the gff. E.g.
     Karrh1_GeneCatalog_genes_20140225.gff.gz
 """
 
+__author__ = "Jorge Navarro"
+__contact__ = "github.com/jorgecnavarrom"
+__version__ = "v1.0"
+
 
 class JGI_Project_Mini:
     """
