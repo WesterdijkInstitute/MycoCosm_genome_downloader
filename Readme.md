@@ -4,7 +4,7 @@
 
 Helps to download genomes (fasta + gff) files from MycoCosm.
 
-For detecting biosynthetic regions using fungiSMASH on all downloaded data, see the companion
+For detecting biosynthetic regions using fungiSMASH on all downloaded data, see the companion [script](launch_fungiSMASH_on_MycoCosm/)
 
 
 # Requirements
