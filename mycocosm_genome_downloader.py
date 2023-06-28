@@ -46,7 +46,7 @@ import shutil
 
 __author__ = "Jorge Navarro"
 __contact__ = "github.com/jorgecnavarrom"
-__version__ = "v1.0"
+__version__ = "v1.0.1"
 
 
 class JGI_Project:
@@ -389,7 +389,8 @@ exclude_assemblies = set(["1034997.Tuber_borchii_Tbo3840.standard.main.scaffolds
                          "Aciri1_meta_AssemblyScaffolds.fasta.gz",
                          "Rhoto_IFO0880_2_AssemblyScaffolds.fasta.gz",
                          "StenotrophomonasSp_AssemblyScaffolds.fasta.gz",
-                         "PseudomonasSp_AssemblyScaffolds.fasta.gz"
+                         "PseudomonasSp_AssemblyScaffolds.fasta.gz",
+                         "EurotioJF034F_1_RiboAssemblyScaffolds.fasta.gz"
                          ])
 def annotate_assembly(organisms_csv, xml_Assembly):    
     duplicated_names = defaultdict(list)
@@ -767,34 +768,36 @@ if __name__ == "__main__":
                 pre_existing += 1
             else:
                 if fungus.assembly_file in location_previous:
+                    old_file = Path(location_previous[fungus.assembly_file]) / fungus.assembly_file
                     try:
-                        shutil.copy(location_previous[fungus.assembly_file], output_folder)
+                        shutil.copy(old_file, output_folder)
                     except:
-                        sys.exit("Error: cannot copy {} into {}".format(location_previous[fungus.assembly_file], output_folder))
+                        sys.exit(f"Error: cannot copy {old_file} into {output_folder}")
                     else:
                         copied += 1
                 else:
                     if download_file(fungus.assembly_url, asm, cookie_path):
                         downloaded += 1
                     else:
-                        print("Warning: could not download assembly {}".format(asm))
+                        print(f"Warning: could not download assembly {asm}")
 
             # GFF
             if gff.is_file() and gff.stat().st_size > 0.9*fungus.gff_size:
                 pre_existing += 1
             else: 
                 if fungus.gff_file in location_previous:
+                    old_file = Path(location_previous[fungus.gff_file]) / fungus.gff_file
                     try:
-                        shutil.copy(location_previous[fungus.gff_file], output_folder)
+                        shutil.copy(old_file, output_folder)
                     except:
-                        sys.exit("Error: cannot copy {} into {}".format(location_previous[fungus.gff_file], output_folder))
+                        sys.exit(f"Error: cannot copy {old_file} into {output_folder}")
                     else:
                         copied += 1
                 else:
                     if download_file(fungus.gff_url, gff, cookie_path):
                         downloaded += 1
                     else:
-                        print("Warning: could not download gff {}".format(gff))
+                        print(f"Warning: could not download gff {gff}")
 
             
 
