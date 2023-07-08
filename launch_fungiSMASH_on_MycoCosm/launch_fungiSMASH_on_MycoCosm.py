@@ -28,7 +28,7 @@ with the assembly and the other with the gff. E.g.
 
 __author__ = "Jorge Navarro"
 __contact__ = "github.com/jorgecnavarrom"
-__version__ = "v1.0"
+__version__ = "v1.1"
 
 
 class JGI_Project_Mini:
@@ -155,59 +155,53 @@ def launch_antismash(cpus, input_base_folder, output_base_folder, organism, para
             
     # "Process substitution"
     # https://stackoverflow.com/questions/15343447/bash-style-process-substitution-with-pythons-popen
-    with tempfile.NamedTemporaryFile(suffix='.fasta', delete=False) as unzipped_assembly:
+    with tempfile.NamedTemporaryFile(suffix='.fasta', delete=True) as unzipped_assembly, \
+            tempfile.NamedTemporaryFile(suffix=gff_type, delete=True) as unzipped_gff:
+        # Decompress input fasta and gff files into the temporary files
         check_call(["zcat", asm_file], shell=False, stdout=unzipped_assembly)
-        #unzipped_assembly.delete = False
-        
-    with tempfile.NamedTemporaryFile(suffix=gff_type, delete=False) as unzipped_gff:
         check_call(["zcat", gff_file], shell=False, stdout=unzipped_gff)
-        #unzipped_gff.delete = False
         
+        cmd = []
+        cmd.append("antismash")
+        cmd.extend(["--cpus", str(cpus)])
+        if len(parameters) > 0:
+            cmd.extend(parameters)
+        cmd.extend(["--output-dir", str(target_folder)])
+        cmd.extend(["--logfile", str(target_folder / f"{portal}.log")])
+        cmd.extend(["--genefinding-gff3", unzipped_gff.name])
+        cmd.append(unzipped_assembly.name)
+        #print(" ".join(cmd))
         
-    cmd = []
-    cmd.append("antismash")
-    cmd.extend(["--cpus", str(cpus)])
-    if len(parameters) > 0:
-        cmd.extend(parameters)
-    cmd.extend(["--output-dir", str(target_folder)])
-    cmd.extend(["--logfile", str(target_folder / "{}.log".format(portal))])
-    cmd.extend(["--genefinding-gff3", unzipped_gff.name])
-    cmd.append(unzipped_assembly.name)
-    #print(" ".join(cmd))
-    
-    #proc = subprocess.run(cmd, stderr=STDOUT, encoding="utf-8")
-    proc = subprocess.run(cmd, capture_output=True, encoding="utf-8")
-    try:
-        proc.check_returncode()
-    except subprocess.CalledProcessError as e:
-        error = "\n".join([x for x in proc.stderr.split("\n") if x.startswith("ERROR")])
-        print("Error {}: {}".format(organism.project_path, error))
-        with open(output_base_folder / "Error.log", "a") as f:
-            f.write("{}\t{}\n".format(portal, error))
-    else:
-        # rename all regions found
-        with open(target_folder / "biosynthetic_regions_renaming.tsv", "w") as f:
-            for reg, gbk in enumerate(target_folder.glob("*region*.gbk")):
-                new_name = "{}.region{:03d}.gbk".format(portal, reg+1)
-                shutil.move(gbk, target_folder / new_name)
-                f.write("{}\t{}\n".format(gbk.name, new_name))
-                
-        # Also rename complete annotated genome file
-        genome_file = target_folder / "{}.gbk".format(Path(unzipped_assembly.name).stem)
-        new_genome_file = target_folder / "{}.gbk".format(portal)
-        shutil.move(genome_file, new_genome_file)
-        
-        json_file = target_folder / "{}.json".format(Path(unzipped_assembly.name).stem)
-        new_json_file = target_folder / "{}.json".format(portal)
-        shutil.move(json_file, new_json_file)
+        #proc = subprocess.run(cmd, stderr=STDOUT, encoding="utf-8")
+        proc = subprocess.run(cmd, capture_output=True, encoding="utf-8")
+        try:
+            proc.check_returncode()
+        except subprocess.CalledProcessError as e:
+            error = "\n".join([x for x in proc.stderr.split("\n") if x.startswith("ERROR")])
+            print(f"Error {organism.project_path}: {error}")
+            with open(output_base_folder / "Error.log", "a") as f:
+                f.write(f"{portal}\t{error}\n")
+        else:
+            # rename all regions found
+            with open(target_folder / "biosynthetic_regions_renaming.tsv", "w") as f:
+                for reg, gbk in enumerate(target_folder.glob("*region*.gbk")):
+                    new_name = f"{portal}.region{reg+1:03d}.gbk"
+                    shutil.move(gbk, target_folder / new_name)
+                    f.write(f"{gbk.name}\t{new_name}\n")
+                    
+            # Also rename complete annotated genome file
+            genome_file = target_folder / f"{Path(unzipped_assembly.name).stem}.gbk"
+            new_genome_file = target_folder / f"{portal}.gbk"
+            shutil.move(genome_file, new_genome_file)
+            
+            json_file = target_folder / f"{Path(unzipped_assembly.name).stem}.json"
+            new_json_file = target_folder / f"{portal}.json"
+            shutil.move(json_file, new_json_file)
 
-    os.remove(unzipped_assembly.name)
-    os.remove(unzipped_gff.name)
-    
     return
 
 
-if __name__ == '__main__':
+def main():
     options = parameter_parser()
     
     o = options.outputfolder
@@ -236,7 +230,7 @@ if __name__ == '__main__':
     aS_parameters = get_parameters()
     organisms = get_paths(i, options.taxonomyfile)
     
-    print("Found {} genomes to work on".format(len(organisms)))
+    print(f"Found {len(organisms)} genomes to work on")
 
 
     # Launch analysis of all files defined by the taxonomy file
@@ -246,13 +240,12 @@ if __name__ == '__main__':
                 continue
             
             # Skip existing results
-            if (o / org.project_path / "{}.gbk".format(org.portal)).is_file():
+            if (o / org.project_path / f"{org.portal}.gbk").is_file():
+                old_gbk = o / org.project_path / f"{org.portal}.gbk"
+                # print(f"skip {old_gbk}")
                 continue
-            # antiSMASH throws an error if there are already results; 
-            # can't use override for now
-            #if (o / org.project_path / "{}.gbk".format(org.portal)).is_file() \
-                    #and not options.override:
-                #continue
+            # antiSMASH throws an error if there are already results; (check)
+            # can't over-write results for now
             
             pool.apply_async(launch_antismash, args=(cpus, i, o, org, aS_parameters, ))
         
@@ -291,3 +284,6 @@ if __name__ == '__main__':
     
     print("Finished")
 
+
+if __name__ == '__main__':
+    main()
