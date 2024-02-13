@@ -569,7 +569,7 @@ def annotate_missing(organisms_csv, xml_masked_assembly):
                 print(f"{portal}\t{dup_names}")
         print("")
 
-    print(f"Assemblies found in masked list: {len(found_asms)}\{len(missing_portals)}")
+    print(f"Assemblies found in masked list: {len(found_asms)}/{len(missing_portals)}")
 
     return
 
@@ -1002,9 +1002,9 @@ def main():
                 # File already there, skipping
                 pre_existing += 1
             elif fungus.assembly_file in location_previous:
-                in_previous += 1
-
-                if not args.simulate:
+                if args.simulate:
+                    in_previous += 1
+                else:
                     old_file = (
                         Path(location_previous[fungus.assembly_file])
                         / fungus.assembly_file
@@ -1026,9 +1026,9 @@ def main():
             if gff.is_file() and gff.stat().st_size > 0.9 * fungus.gff_size:
                 pre_existing += 1
             elif fungus.gff_file in location_previous:
-                in_previous += 1
-
-                if not args.simulate:
+                if args.simulate:
+                    in_previous += 1
+                else:
                     old_file = (
                         Path(location_previous[fungus.gff_file]) / fungus.gff_file
                     )
