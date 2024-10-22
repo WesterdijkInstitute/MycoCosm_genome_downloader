@@ -23,14 +23,18 @@ This is a node:
 
 Elements can be nested.
 
-Version 2:
+---
 requires: lxml etetoolkit ete3 ete_toolchain
+
+---
+
+v1.3.0: as of 2024-08, downloading the file list by querying for the xml
+file with organism=fungi no longer works (reason: "too many files"). This
+version addresses that
 
 #TODO: exit if JGI logging in is not successful
 """
 
-import sys
-import os
 import argparse
 from pathlib import Path
 import csv
@@ -46,8 +50,8 @@ from collections import defaultdict
 import shutil
 
 __author__ = "Jorge Navarro"
-__contact__ = "github.com/jorgecnavarrom"
-__version__ = "v1.2.0"
+__contact__ = "github.com/jorgecnavarrom/MycoCosm_genome_downloader/issues"
+__version__ = "v1.3.0"
 
 
 class JGI_Project:
@@ -78,6 +82,8 @@ class JGI_Project:
 
         self.date = ""  # Ideally, a Time object
 
+        self.is_restricted = False
+
         return
 
 
@@ -91,25 +97,26 @@ def command_parser():
     group_get.add_argument(
         "-u",
         "--update",
-        help="Updates NCBI Taxonomy database\
-        and exits. Used to infer lineage from TaxId",
+        help="Updates NCBI Taxonomy database and exits. Used to infer \
+            lineage from TaxId",
         default=False,
         action="store_true",
     )
     group_get.add_argument(
         "--getgenomelist",
-        help="Gets a fresh download \
-        of MycoCosm's genome list 'MycoCosm_Genome_list.csv' and exits. Used to\
-        get metadata of each project (TaxId, full name). Stored in the folder \
-        specified by --outputfolder",
+        help="Gets a fresh download of MycoCosm's genome list \
+            'MycoCosm_Genome_list.csv' and exits. Used to get metadata \
+            of each project (TaxId, full name). Stored in the folder \
+            specified by --outputfolder",
         default=False,
         action="store_true",
     )
     group_get.add_argument(
         "--getxml",
-        help="Gets a fresh download of JGI's xml\
-        file and exits. Use to obtain routes to each file. Stored in the folder \
-        specified by --outputfolder",
+        help="Builds an xml file with all files per project. Stored in the \
+            folder specified by --outputfolder. If already present, only \
+            missing data will be added. Uses 'MycoCosm_Genome_list.csv' (which \
+            should exist in the output folder)",
         default=False,
         action="store_true",
     )
@@ -120,7 +127,7 @@ def command_parser():
             previous run. Argument to this parameter is the base folder to \
             start looking recursively for .gz files. File will be stored in \
             the same place as this script (name: \
-            'previously_downloaded_files.tsv'",
+            'previously_downloaded_files.tsv'"
     )
 
     group_input = parser.add_argument_group("Input")
@@ -128,23 +135,35 @@ def command_parser():
         "-c",
         "--csv",
         help="List of genomes in JGI with some metadata like TaxId",
-        type=Path,
-        required=True
+        type=Path
     )
     group_input.add_argument(
         "-x", 
         "--xml", 
         help="JGI file with links to files", 
-        type=Path,
-        required=True
+        type=Path
     )
     group_input.add_argument(
         "-p",
         "--previous",
-        help="File listing the \
-        locations of previously-downloaded files to copy from, instead of \
-        re-downloading",
+        help="File listing the locations of previously-downloaded files to \
+            copy from, instead of re-downloading",
         type=Path
+    )
+    group_input.add_argument(
+        "-r",
+        "--use-restricted",
+        help="Include genomes marked as restricted (default: don't include)",
+        default=False,
+        action="store_true",
+        dest="use_restricted"
+    )
+    group_input.add_argument(
+        "-e",
+        "--exclude-list",
+        help="A text file with project names to exclude. One project per line",
+        type=Path,
+        dest="exclude_list"
     )
 
     group_output = parser.add_argument_group("Output")
@@ -187,6 +206,7 @@ def JGI_login(cookie_path):
     # See: https://genome.jgi.doe.gov/portal/help/download.jsf#api
     command = []
     command.append("curl")
+    command.append("--silent")
     command.append("https://signon.jgi.doe.gov/signon/create")
     command.append("--data-urlencode")
     command.append(f"login={user}")
@@ -228,6 +248,35 @@ def get_JGI_genome_list(outputfolder):
     else:
         print("--------------------------------------------\n")
         return True
+
+
+def read_previous_locations(previous_location_file) -> dict:
+    """Reads location of files from previous runs"""
+    location_previous = {}
+
+    with open(previous_location_file) as f:
+        for line in f:
+            filename, location = line.strip().split("\t")
+            location_previous[filename] = location
+
+    return location_previous
+
+
+def read_excluded_projects(exclude_list_file:Path) -> set:
+    """Reads a user-provided list of projects to exclude
+    
+    One project label per line
+    """
+    exclude_projects = set()
+
+    with open(exclude_list_file) as f:
+        for line in f:
+            stripped = line.strip()
+            if line[0] == "#" or stripped == "":
+                continue
+            exclude_projects.add(stripped.split()[0])
+
+    return exclude_projects
 
 
 def remove_version(label):
@@ -340,7 +389,10 @@ portals_to_remove = {
 }
 
 
-def read_mycocosm_csv(csvpath):
+def read_mycocosm_csv(csvpath: Path) -> dict:
+    if not csvpath.is_file():
+        exit("Couldn't find genome list file ({csvpath})")
+
     orgdict = dict()
     # MycoCosm file is downloaded with ISO-8859-1 encoding. Use this to avoid UnicodeDecodeError, see
     # https://stackoverflow.com/questions/12468179/unicodedecodeerror-utf8-codec-cant-decode-byte-0x9c
@@ -398,6 +450,9 @@ def read_mycocosm_csv(csvpath):
 
             fungus.project_path = get_final_output_folder(Path("./"), lineage_set)
 
+            if l["is restricted"] == "Y":
+                fungus.is_restricted = True
+
             orgdict[shortname] = fungus
 
     # Remove projects we don't want to include
@@ -408,50 +463,76 @@ def read_mycocosm_csv(csvpath):
     return orgdict
 
 
-def get_JGI_xml(cookie_path):
-    # Get list of files. Should be equivalent to
-    # curl 'http://genome.jgi.doe.gov/portal/ext-api/downloads/get-directory?organism=PhytozomeV10' -b cookies > get-directory
-
-    if not cookie_path.is_file():
-        exit("Error (get_JGI_xml): cookie not a valid file")
-
-    target = "fungi"  # change target here to make tests
-    # target = "Gyrinf1"
+def download_project_xml(cookie_path: Path, target_project: str): 
+    """Given a cookie and a project name, download xml with file list"""
 
     command = []
     command.append("curl")
+    command.append("--retry")
+    command.append("5")
     command.append(
-        f"https://genome.jgi.doe.gov/portal/ext-api/downloads/get-directory?organism={target}"
+        f"https://genome-downloads.jgi.doe.gov/portal/ext-api/downloads/get-directory?organism={target_project}"
         )
     command.append("-b")
     command.append(str(cookie_path))
 
-    print(" Downloading list of files: ")
-    # Can't seem to be able to capture the output of the sp.run() command and
-    # send it directly pretty-printed to the file; using an intermediate file
-    xmlfile = o / "MycoCosm_data.xml"
-    # Note: due to the requirements of the environmnent's packages, we're
-    # forced to use python 3.6. More recent versions have more options for
-    # subprocess.run(), see https://docs.python.org/3.6/library/subprocess.html
-    with open(xmlfile, "w") as f:
-        print(" Downloading xml file list")
-        print("--------------------------------------------")
-        sp.run(command, encoding="utf-8", stdout=f)
-        print("--------------------------------------------\n")
+    xmloutput = ""
+    try:
+        xml_query = sp.run(command, encoding="utf-8", capture_output=True, check=True)
+    except CalledProcessError as e:
+        print(f"Command {e.cmd} failed")
+        print(e.output)
+        exit(f"Error while downloading xml list of files for {target_project}")
 
-    print(" Re-formatting xml file")
-    parser = etree.XMLParser(remove_blank_text=True)
-    xml = etree.parse(str(xmlfile), parser)
-    with open(xmlfile, "wb") as f:
-        f.write(etree.tostring(xml, pretty_print=True))
+    return etree.fromstring(xml_query.stdout)
+
+
+def get_JGI_xml(o: Path, cookie_path: Path, project_dict: dict):
+    """Downloads a xml list of all files per project, for all projects
+    
+    NOTE: it will download data for all projects (including restricted)
+    NOTE: if already present, it will only try to download missing data
+
+    See instructions in:
+    https://genome.jgi.doe.gov/portal/help/download.jsf#/api
+    """
+    
+    if not cookie_path.is_file():
+        exit("Error (get_JGI_xml): cookie not a valid file")
+
+    xmlfile = o / "MycoCosm_data.xml"
+    
+    # see if we already have something
+    preexisting_data = set()
+    if xmlfile.is_file():
+        data = etree.parse(str(xmlfile))
+        root = data.getroot()
+        for child in root:
+            if child.tag == "organismDownloads":
+                preexisting_data.add(child.attrib["name"])
+    else:
+        # otherwise create a new xml structure
+        root = etree.Element("Data", attrib={"name":"Mycocosm"})
+
+    # query JGI for each project's (missing) data
+    for project in project_dict.keys():
+        if project in preexisting_data:
+            continue
+
+        project_xml = download_project_xml(cookie_path, project)
+        root.append(project_xml)
+
+        # not ideal but better to write the file back each time in case process
+        # is interrupted
+        with open(xmlfile, "bw") as f:
+            f.write(etree.tostring(root, pretty_print=True))
 
     return True
 
 
-# Ignore these filenames as they're not related to assemblies, are old versions or
-# are assemblies of meta-samples
-exclude_assemblies = set(
-    [
+# Ignore these filenames as they're not related to assemblies, are old versions 
+# or are assemblies of meta-samples
+exclude_assemblies = {
         "1034997.Tuber_borchii_Tbo3840.standard.main.scaffolds.fasta.gz",
         "Spofi1.draft.mito.scaffolds.fasta.gz",
         "Patat1.draft.mito.scaffolds.fasta.gz",
@@ -464,17 +545,120 @@ exclude_assemblies = set(
         "StenotrophomonasSp_AssemblyScaffolds.fasta.gz",
         "PseudomonasSp_AssemblyScaffolds.fasta.gz",
         "EurotioJF034F_1_RiboAssemblyScaffolds.fasta.gz",
+    }
+
+def annotate_projects(organisms_csv: dict, xml_file: Path, 
+        hardcoded_gff_files: dict, outputfolder: Path):
+    """Parses the xml file and extracts the assembly+gff files for each project
+    """
+
+    # auxiliary files
+    gff_filenames = defaultdict(list) # holds all found annotation files
+    skipped_gffs = set()
+
+    # parse xml
+    root = etree.parse(str(xml_file)).getroot()
+    for portal_node in root:
+        if portal_node.tag != "organismDownloads":
+            continue
+
+        portal = portal_node.attrib["name"]
+        fungi = organisms_csv[portal]
+
+        for child in portal_node:
+            # The other option is "Mycocosm" which has a slightly different
+            # set of files (at least for Trire2) but they seem to be on tape
+            if child.attrib["name"] == "Files":
+                Fungi_files = child
+                break
+        else:
+            print(f"No 'Files' node in portal {portal}, skipping")
+            continue
+
+        for folder in Fungi_files:
+            if folder.attrib["name"] == "Assembly":
+                for subfolder in folder:
+                    if subfolder.attrib["name"] == "Genome Assembly (unmasked)":
+                        asm_node = subfolder
+                    if subfolder.attrib["name"] == "Genome Assembly (masked)":
+                        asm_masked_node = subfolder
+                        
+            if folder.attrib["name"] == "Annotation":
+                Annotation_folder = folder
+                for subfolder in Annotation_folder:
+                    if subfolder.attrib["name"] == 'Filtered Models ("best")':
+                        Filtered = subfolder
+                        for subsubfolder in Filtered:
+                            # if subsubfolder.attrib["name"] == "Proteins":
+                            #     protein_node = subsubfolder
+                            if subsubfolder.attrib["name"] == "Genes":
+                                gff_node = subsubfolder
+
+        annotate_assembly(organisms_csv, asm_node)
+        # a few projects don't have unmasked assemblies. Assign masked ones
+        if not organisms_csv[portal].assembly_file:
+            print(f"Portal {portal} missing unmasked assembly. ",end="")
+            print("Attempting masked version")
+            annotate_missing(organisms_csv, asm_masked_node)
+        
+        annotate_gff(
+            organisms_csv, 
+            gff_node, 
+            hardcoded_gff_files,
+            gff_filenames,
+            skipped_gffs
+            )
+
+
+    # write down all found annotation files
+    # values are pairs of filename, datetimeobject
+    repeated_file = outputfolder / "List_gene_gff_filenames.txt"
+    with codecs.open(repeated_file, "w", encoding="utf-8") as f:
+        for portal in sorted(gff_filenames):
+            # f.write("{} ({})\n".format(portal, codecs.decode(organisms_csv[portal].name, encoding='utf-8')))
+            f.write(f"{portal} ({organisms_csv[portal].name})\n")
+            f.write(f"\t{organisms_csv[portal].project_path}\n")
+            for filename, dt in gff_filenames[portal]:
+                if filename in skipped_gffs:
+                    f.write(
+                        f"\t{dt.strftime("%Y-%m-%d")}\t{filename} (SKIPPED)"
+                    )
+                else:
+                    f.write(f"\t{dt.strftime("%Y-%m-%d")}\t{filename}")
+
+                if filename == organisms_csv[portal].gff_file:
+                    f.write(" *\n")
+                else:
+                    f.write("\n")
+            f.write("\n")
+        
+    # report if we're missing annotation files
+    portals_missing_gff_file = [
+        p.portal for p in organisms_csv.values() if p.gff_file == ""
     ]
-)
+    if len(portals_missing_gff_file) > 0:
+        missing_gff_string = ", ".join(portals_missing_gff_file)
+        print(f"Missing gffs from: {missing_gff_string}")
 
 
 def annotate_assembly(organisms_csv, xml_Assembly):
-    duplicated_names = defaultdict(list)
+    duplicated_names = []
     # NOTE:
     # projects' names differ between what's annotated in the csv and xml files
     # for example:
     # (csv): 'Mortierella humilis PMI_1414 v1.0'
     # (xml): 'Mortierella humilis PMI_1414 - Glomeribacter phylotype 2 Fungal Standard Draft'
+    #
+    # Children example: 
+    # <file 
+    #   label="Trichoderma reesei v2.0"
+    #   filename="Trichoderma_reeseiV2.allmasked.gz"
+    #   size="10 MB"
+    #   sizeInBytes="10610336"
+    #   timestamp="Wed Mar 07 17:13:42 PST 2012"
+    #   url="/portal/Trire2/download/Trichoderma_reeseiV2.allmasked.gz"
+    #   project="16784" md5="570c79e70fb1df0cf7ffea46d0c3cd4d"
+    #   fileType="Unknown"
     for element in xml_Assembly.iterdescendants():
         filename = element.attrib["filename"]
         url = element.attrib["url"]
@@ -482,7 +666,7 @@ def annotate_assembly(organisms_csv, xml_Assembly):
         file_size = int(element.attrib["sizeInBytes"])
 
         if portal == "Altbr1":
-            print(element.attrib)
+            # print(element.attrib)
             exit()
 
         if (
@@ -505,42 +689,27 @@ def annotate_assembly(organisms_csv, xml_Assembly):
                 f"Warning! Portal {portal} from xml file not found in csv list"
             )
 
-        duplicated_names[portal].append(filename)
+        duplicated_names.append(filename)
 
-    if len(duplicated_names) != sum([len(x) for x in duplicated_names.values()]):
-        print("Warning: the following portals have more than one assembly file!")
-        for portal, listfilenames in duplicated_names.items():
-            if len(listfilenames) != 1:
-                dup_names = ", ".join(listfilenames)
-                print(f"{portal}\t{dup_names}")
+    if len(duplicated_names) > 1:
+        print(f"Warning: portal {portal} has more than one assembly file!")     
+        dup_names = ", ".join(duplicated_names)
+        print(f"{portal}\t{dup_names}")
         print("")
+    elif len(duplicated_names) == 0:
+        print(f"Portal {portal} has no (unmasked) assembly file")
 
     return
 
 
 def annotate_missing(organisms_csv, xml_masked_assembly):
-    missing_portals = set()
-    found_asms = set()
-    for portal in organisms_csv:
-        fungus = organisms_csv[portal]
 
-        if fungus.assembly_file == "":
-            missing_portals.add(portal)
-
-    if len(missing_portals) == 0:
-        return
-    
-    print(f"Missing assemblies: {len(missing_portals)}. Attempting masked versions")
-
-    duplicated_names = defaultdict(list)
+    duplicated_names = []
     for element in xml_masked_assembly.iterdescendants():
         filename = element.attrib["filename"]
         url = element.attrib["url"]
         portal = url.split("/")[2]
         file_size = int(element.attrib["sizeInBytes"])
-
-        if portal not in missing_portals:
-            continue
 
         if (
             "MitoAssembly" in filename
@@ -556,20 +725,16 @@ def annotate_missing(organisms_csv, xml_masked_assembly):
         organisms_csv[portal].assembly_file = filename
         organisms_csv[portal].assembly_url = url
         organisms_csv[portal].assembly_size = file_size
-        found_asms.add(portal)
 
-        duplicated_names[portal].append(filename)
+        duplicated_names.append(filename)
 
-    if len(duplicated_names) != sum([len(x) for x in duplicated_names.values()]):
-        print("Warning: the following portals have more than one assembly file!")
-        print(" (masked genomes list)")
-        for portal, listfilenames in duplicated_names.items():
-            if len(listfilenames) != 1:
-                dup_names = ", ".join(listfilenames)
-                print(f"{portal}\t{dup_names}")
+    if len(duplicated_names) > 1:
+        print(f"Warning: portal {portal} has more than one masked assembly file!")     
+        dup_names = ", ".join(duplicated_names)
+        print(f"{portal}\t{dup_names}")
         print("")
-
-    print(f"Assemblies found in masked list: {len(found_asms)}/{len(missing_portals)}")
+    elif len(duplicated_names) == 0:
+        print(f"Portal {portal} has no (masked) assembly file")
 
     return
 
@@ -601,9 +766,13 @@ def get_hardcoded_gffs():
     return hgfs
 
 
-def annotate_gff(o, organisms_csv, xml_gff, hardcoded_gff_files):
-    gff_filenames = defaultdict(list)  # each element a pair of filename, datetimeobject
-    skipped_filenames = set()
+def annotate_gff(
+        organisms_csv, 
+        gff_node, 
+        hardcoded_gff_files,
+        gff_filenames,
+        skipped_gffs
+    ):
 
     # If we're to compare the different gff files to get the newest
     # we must convert the timestamp to something we can compare.
@@ -645,7 +814,7 @@ def annotate_gff(o, organisms_csv, xml_gff, hardcoded_gff_files):
         "Dec": "12",
     }
 
-    for element in xml_gff.iterdescendants():
+    for element in gff_node.iterdescendants():
         filename = element.attrib["filename"]
         url = element.attrib["url"]
         portal = url.split("/")[2]
@@ -681,11 +850,11 @@ def annotate_gff(o, organisms_csv, xml_gff, hardcoded_gff_files):
                 org.gff_size = file_size
                 continue
             else:
-                skipped_filenames.add(filename)
+                skipped_gffs.add(filename)
                 continue
 
         if filename in ignore_gff_filenames:
-            skipped_filenames.add(filename)
+            skipped_gffs.add(filename)
             continue
 
         if "proteins" in filename.lower() \
@@ -693,12 +862,12 @@ def annotate_gff(o, organisms_csv, xml_gff, hardcoded_gff_files):
             or "promoter_regions" in filename.lower():
             # based on example of Aspzo1, these seem to be large files
             # with a compilation of several gff3 files (or secondary alleles)
-            skipped_filenames.add(filename)
+            skipped_gffs.add(filename)
             continue
 
         # what are these...?
         if filename[-6:] == "gtf.gz" or filename[-3:] == "tgz" or filename[-2:] != "gz":
-            skipped_filenames.add(filename)
+            skipped_gffs.add(filename)
             continue
 
         if org.gff_file == "":
@@ -736,32 +905,7 @@ def annotate_gff(o, organisms_csv, xml_gff, hardcoded_gff_files):
                 print()
                 continue
 
-    repeated_file = o / "List_gene_gff_filenames.txt"
-    with codecs.open(repeated_file, "w", encoding="utf-8") as f:
-        for portal in sorted(gff_filenames):
-            # f.write("{} ({})\n".format(portal, codecs.decode(organisms_csv[portal].name, encoding='utf-8')))
-            f.write(f"{portal} ({organisms_csv[portal].name})\n")
-            f.write(f"\t{organisms_csv[portal].project_path}\n")
-            for filename, dt in gff_filenames[portal]:
-                if filename in skipped_filenames:
-                    f.write(
-                        f"\t{dt.strftime("%Y-%m-%d")}\t{filename} (SKIPPED)"
-                    )
-                else:
-                    f.write(f"\t{dt.strftime("%Y-%m-%d")}\t{filename}")
-
-                if filename == organisms_csv[portal].gff_file:
-                    f.write(" *\n")
-                else:
-                    f.write("\n")
-            f.write("\n")
-
-    portals_missing_gff_file = [
-        p.portal for p in organisms_csv.values() if p.gff_file == ""
-    ]
-    if len(portals_missing_gff_file) > 0:
-        missing_gff_string = ", ".join(portals_missing_gff_file)
-        print(f"Missing gffs from: {missing_gff_string}")
+    return
 
 
 def download_file(url, local_path, cookie):
@@ -788,7 +932,7 @@ def download_file(url, local_path, cookie):
         return True
 
 
-def get_aux_files(args) -> None:
+def get_aux_files(args, cookie_path) -> None:
     if args.update:
         print("Updating NCBI taxonomy database")
         ncbi = NCBITaxa()
@@ -799,7 +943,7 @@ def get_aux_files(args) -> None:
         #  Output folder
         o = args.outputfolder
         if not o.is_dir():
-            o.makedirs(o, exist_ok=True, parents=True)
+            o.mkdir(exist_ok=True, parents=True)
 
     if args.getgenomelist:
         print("Downloading genome list (.csv)")
@@ -809,10 +953,15 @@ def get_aux_files(args) -> None:
             print("  Cannot download MycoCosm's genome list...")
 
     if args.getxml:
+        mycocosm_csv = o / "MycoCosm_Genome_list.csv"
         print("Downloading xml file")
         if not JGI_login(cookie_path):
             exit("Error: Cannot log in to JGI...")
-        if get_JGI_xml(cookie_path):
+        elif not mycocosm_csv.is_file():
+            exit("Error downloading xml files: download genome list first")
+
+        
+        if get_JGI_xml(o, cookie_path, read_mycocosm_csv(mycocosm_csv)):
             print("  Done")
         else:
             print("  Cannot download MycoCosm's xml file...")
@@ -873,48 +1022,51 @@ def main():
 
     # Update/download files and exit
     if args.update or args.getgenomelist or args.getxml or args.getprevious:
-        get_aux_files(args)
+        get_aux_files(args, cookie_path)
         exit("All data fetched")
 
     #  Output folder
     o = args.outputfolder
     if not o.is_dir():
-        os.makedirs(o, exist_ok=True)  # recursive folder creation
+        o.mkdir(exist_ok=True, parents=True)  # recursive folder creation
 
     # Read the info from the official list of release genomes
-    # It should be the same fungi we'll find defined in the xml
-    csv_path = args.csv
-    if not csv_path.is_file():
-        exit("Error: cannot open specified csv file")
-
-    # The main goal of the script is to populate all the info in each
-    # JGI_Project object, then use that info to download/copy the files
+    # It should be the same fungi we'll find defined in the xml    
     organisms_csv = dict()
     organisms_csv = read_mycocosm_csv(args.csv)
-    print(f"Found {len(organisms_csv)} fungi in the csv genome list\n")
+    print(f"Total number of genomes: {len(organisms_csv)}\n")
 
     location_previous = dict()
     if args.previous:
-        with open(args.previous) as f:
-            for line in f:
-                filename, location = line.strip().split("\t")
-                location_previous[filename] = location
+        location_previous = read_previous_locations(args.previous)
+
+    exclude_projects = {}
+    if args.exclude_list:
+        exclude_projects = read_excluded_projects(args.exclude_list)
 
     if not (args.xml).is_file():
         exit("Error: invalid file specified with --xml")
 
-    # Grab the nodes from the xml that we'll need
-    asm_node, asm_masked_node, protein_node, gff_node = parse_xml(args.xml)
-    
-    # Annotate assembly
-    annotate_assembly(organisms_csv, asm_node)
-
-    # Attempt to get missing assemblies by looking in the 'masked' section
-    annotate_missing(organisms_csv, asm_masked_node)
-
-    # Annotate gff files
+    # --------------------
+    # The main goal of the script is to populate all the info in each
+    # JGI_Project object, then use that info to download/copy the files
     hardcoded_gff_files = get_hardcoded_gffs()
-    annotate_gff(o, organisms_csv, gff_node, hardcoded_gff_files)
+    annotate_projects(organisms_csv, args.xml, hardcoded_gff_files, o)
+
+    # # Grab the nodes from the xml that we'll need
+    # asm_node, asm_masked_node, protein_node, gff_node = parse_xml(args.xml)
+    
+    # # Annotate assembly
+    # annotate_assembly(organisms_csv, asm_node)
+
+    # # Attempt to get missing assemblies by looking in the 'masked' section
+    # annotate_missing(organisms_csv, asm_masked_node)
+
+    # # Annotate gff files
+    # hardcoded_gff_files = get_hardcoded_gffs()
+    # annotate_gff(o, organisms_csv, gff_node, hardcoded_gff_files)
+
+    # ---------------------
 
     # Download (or copy) all data
     if args.simulate:
@@ -947,11 +1099,12 @@ def main():
             "Short name\tAccession\tTaxId\tName\tPath\tAssembly file\tGFF file\tlineage\n"
         )
 
-        for portal in organisms_csv:
-            fungus = organisms_csv[portal]
-
-            portal = fungus.portal
-
+        for portal, fungus in organisms_csv.items():
+            if not args.use_restricted and fungus.is_restricted:
+                continue
+            if portal in exclude_projects:
+                continue
+            
             if fungus.assembly_file == "" or fungus.gff_file == "":
                 if fungus.assembly_file == "" and fungus.gff_file == "":
                     missing_string = "(assembly and gff)"
@@ -968,7 +1121,7 @@ def main():
             base_folder = Path(fungus.project_path) / portal
             output_folder = o / base_folder
             if not output_folder.is_dir():
-                os.makedirs(output_folder, exist_ok=True)
+                output_folder.mkdir(exist_ok=True, parents=True)
 
             tf.write(portal)
             tf.write(f"\t{portal}")
