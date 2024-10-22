@@ -1,6 +1,6 @@
 # MycoCosm genome downloader
 
-(Note: This is a static, unmaintained version of the script kept here for archival purposes)
+(Note: This project is unfrequently maintained, and is mostly kept here for archival purposes)
 
 Helps to download genomes (fasta + gff) files from MycoCosm.
 
@@ -9,16 +9,16 @@ For detecting biosynthetic regions using fungiSMASH on all downloaded data, see 
 
 # Requirements
 
-* `ete3` and `libxml2`. Alternatively, you can use the provided `yml` file with conda (`conda env create --file mycocosmdownloader.yml`).
+* `ete3` and `libxml2`. Alternatively, you can use the provided `yml` file with conda (`conda env create --file mycocosmdownloader.yml`)
 * [`curl`](https://curl.se/) (should already be installed in Mac or Linux systems)
 * A JGI account
 
 
-# Usage (tested 2022-03)
+# Usage (tested 2024-02)
 
 ## Update taxonomy database
 
-As part of the output of this program, a "taxonomy" file is created, which includes the lineage for each species (this lineage is also used to create the folder structure for the outpu). For this, ete3 is used. Use the following command to update the database:
+As part of the output of this program, a "taxonomy" file is created, which includes the lineage for each species (this lineage is also used to create the folder structure for the output). For this, `ete3`` is used. Use the following command to update the database:
 ```
 python mycocosm_genome_downloader.py --update
 ```
@@ -64,7 +64,7 @@ If you already have downloaded data, you can simply use your local copy of the f
 ## Known limitations, notes
 
 * The incorrect gff might have been chosen
-* Some old gff files can't be processed correctly by other tools (e.g. antiSMASH)
+* Some old gff files can't be processed correctly by other tools (e.g. bcbio.gff)
 * Can't handle dikaryon genomes ("primary/secondary alleles")
 
 ## More details
@@ -73,14 +73,16 @@ If you already have downloaded data, you can simply use your local copy of the f
 
 These are the folders that are scanned for files, as they appear while in each Portal's download section:
 
-* Assemblies: "Assembled scaffolds (unmasked)"
+* Assemblies: "Genome Assembly (unmasked)" (previously called "Assembled scaffolds (unmasked)")
 * Gene annotations: "Filtered Models ('best')"
+
+Note: Some genomes seem to be only available in the "masked" version (e.g. `Pyrtr1`, `Altbr1`, etc.)
 
 ### Choosing the right annotation file
 
 There are usually a few files to choose from in the "Filtered Models ('best')" folder. The criteria to choose a single file is implemented in the following order:
 * In some cases, the choosing was done manually and incorporated to the `hardcoded_gff_files.tsv` file. If the Portal has an entry here, use the indicated file. This is a work in progress!
-* Skip some specific files: "Aciri1_meta_GeneCatalog_genes_20111216.gff.gz", "Exoaq1_GeneCatalog_20160901.gff3.gz", "Exoaq1_GeneCatalog_20160828.gff3.gz", "Fonpe1_GeneCatalog_20160901.gff3.gz", "Copmic2_FM1_removed_alleles.gff.gz"
+* Skip some specific files: `Aciri1_meta_GeneCatalog_genes_20111216.gff.gz`, `Exoaq1_GeneCatalog_20160901.gff3.gz`, `Exoaq1_GeneCatalog_20160828.gff3.gz`, `Fonpe1_GeneCatalog_20160901.gff3.gz`, `Copmic2_FM1_removed_alleles.gff.gz`
 * Skip files with `proteins` or `secondary_alleles` in their name
 * Skip files with the following extensions: `gtf.gz`, `tgz` and any other that is *not* `gz`
 * Prefer `gff3` files
@@ -91,8 +93,8 @@ There are usually a few files to choose from in the "Filtered Models ('best')" f
 
 * Files with `MitoAssembly`, `MitoScaffolds`, `PrimaryAssemblyScaffolds` or `SecondaryAssemblyScaffolds` in their name
 * Excluded assemblies (hardcoded). Ignore these filenames as they're not related to assemblies, are old versions or
- are assemblies of meta-samples: "1034997.Tuber_borchii_Tbo3840.standard.main.scaffolds.fasta.gz", "Spofi1.draft.mito.scaffolds.fasta.gz", "Patat1.draft.mito.scaffolds.fasta.gz", "PleosPC9_1_Assembly_scaffolds.fasta.gz", "Neuhi1_PlasmidAssemblyScaffolds.fasta.gz", "CocheC5_1_assembly_scaffolds.fasta.gz", "Alternaria_brassicicola_masked_assembly.fasta.gz", "Aciri1_meta_AssemblyScaffolds.fasta.gz", "Rhoto_IFO0880_2_AssemblyScaffolds.fasta.gz"
-* Ignored portals (hardcoded). Metaprojects or old versions: "Rhoto_IFO0880_2", "Aciri1_meta", "Pospl1"
+ are assemblies of meta-samples: `1034997.Tuber_borchii_Tbo3840.standard.main.scaffolds.fasta.gz`, `Spofi1.draft.mito.scaffolds.fasta.gz`, `Patat1.draft.mito.scaffolds.fasta.gz`, `PleosPC9_1_Assembly_scaffolds.fasta.gz`, `Neuhi1_PlasmidAssemblyScaffolds.fasta.gz`, `CocheC5_1_assembly_scaffolds.fasta.gz`, `Alternaria_brassicicola_masked_assembly.fasta.gz`, `Aciri1_meta_AssemblyScaffolds.fasta.gz`, `Rhoto_IFO0880_2_AssemblyScaffolds.fasta.gz`
+* Ignored portals (hardcoded). Metaprojects or old versions: `Rhoto_IFO0880_2`, `Aciri1_meta`, `Pospl1`
 
 
 ## Author
