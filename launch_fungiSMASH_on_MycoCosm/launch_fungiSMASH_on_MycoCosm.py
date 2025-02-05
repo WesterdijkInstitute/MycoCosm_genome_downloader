@@ -5,10 +5,9 @@ import sys
 import argparse
 from pathlib import Path
 import subprocess
-from subprocess import check_call, check_output
+from subprocess import check_call
 import time
 import tempfile
-import gzip
 from multiprocessing import Pool
 import shutil
 from subprocess import STDOUT
@@ -18,7 +17,8 @@ Launches instances of fungiSMASH5 on fasta+gff genomes
 (intended for JGI genomes)
 
 - Intended to use with the conda-installed version of antiSMASH
-- Uses a Taxonomy file that contains the target folder following JGI's fungal tree
+- Uses a Taxonomy file that contains the target folder following JGI's fungal 
+tree
 
 It is expected that every subfolder contains a pair of <species_id> files: one
 with the assembly and the other with the gff. E.g.
@@ -170,7 +170,7 @@ def launch_antismash(cpus, input_base_folder, output_base_folder, organism, para
         cmd.extend(["--logfile", str(target_folder / f"{portal}.log")])
         cmd.extend(["--genefinding-gff3", unzipped_gff.name])
         cmd.append(unzipped_assembly.name)
-        #print(" ".join(cmd))
+        # print(" ".join(cmd))
         
         #proc = subprocess.run(cmd, stderr=STDOUT, encoding="utf-8")
         proc = subprocess.run(cmd, capture_output=True, encoding="utf-8")
@@ -184,6 +184,7 @@ def launch_antismash(cpus, input_base_folder, output_base_folder, organism, para
         else:
             # rename all regions found
             with open(target_folder / "biosynthetic_regions_renaming.tsv", "w") as f:
+                # renames all regions consecutively
                 for reg, gbk in enumerate(target_folder.glob("*region*.gbk")):
                     new_name = f"{portal}.region{reg+1:03d}.gbk"
                     shutil.move(gbk, target_folder / new_name)
@@ -253,33 +254,16 @@ def main():
         pool.join()
         
     # Serialized version/ testing
-    #for org in organisms.values():
-        #if org.portal in wgs_to_skip:
-            #continue
-        #genome_file = o / org.project_path / "{}.gbk".format(org.portal)
-        ##print(genome_file)
-        #if (genome_file).is_file():
-            #continue
+    # for org in organisms.values():
+    #     if org.portal in wgs_to_skip:
+    #         continue
+    #     genome_file = o / org.project_path / f"{org.portal}.gbk"
+    #     #print(genome_file)
+    #     if (genome_file).is_file():
+    #         continue
         
-        #tmp_gbks = list((o / org.project_path).glob("tmp*.gbk"))
-        #all_gbks = list((o / org.project_path).glob("*.gbk"))
-        #if len(all_gbks) > 1 and not genome_file.is_file():
-            #print(all_gbks)
-        #if len(tmp_gbks) == 0:
-            #pass
-        #el
-        #if len(tmp_gbks) == 1:
-            #tmp_gbk = tmp_gbks[0]
-            #shutil.move(tmp_gbk, genome_file)
-            #print("renamed {}".format(genome_file))
-            #continue
-        #else:
-            #print("Weird portal {}".format(org.portal))
-            #print("\n".join(tmp_gbks))
-            #continue
-        
-        #launch_antismash(cpus, i, o, org, aS_parameters)
-        #sys.exit()
+    #     launch_antismash(cpus, i, o, org, aS_parameters)
+    #     exit()
 
     
     print("Finished")

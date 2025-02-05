@@ -25,14 +25,24 @@ python mycocosm_genome_downloader.py --update
 
 ## Obtain data files
 
-Obtain the [list of genomes](https://mycocosm.jgi.doe.gov/ext-api/mycocosm/catalog/download-group?flt=&seq=all&pub=all&grp=fungi&srt=released&ord=asc), and the list of files:
+1. Obtain the [list of genomes](https://mycocosm.jgi.doe.gov/ext-api/mycocosm/catalog/download-group?flt=&seq=all&pub=all&grp=fungi&srt=released&ord=asc):
 ```
-python mycocosm_genome_downloader.py --getgenomelist --getxml
+python mycocosm_genome_downloader.py --getgenomelist
 ```
 
-The list of genomes is a comma-separated value file which enlists all current projects ("**portals**") in MycoCosm (`MycoCosm_Genome_list.csv`, Note: it uses ISO-8859-15 encoding); The list of files is stored as `MycoCosm_data.xml` (Note: this is ~40Mb file which may take several tries to download. After downloading, it is re-formatted to be human-readable).
+**Note 2025-02**: the link above currently leads to a "are you a human" page, so this method doesn't work. Please download the file and name it `MycoCosm_Genome_list.csv`
 
-These files will be stored in the folder specified by the `--outputfolder` argument (default: 'output'). You will need your credentials to retrieve the file list.
+The list of genomes is a comma-separated value file which enlists all current projects ("**portals**") in MycoCosm (`MycoCosm_Genome_list.csv`, Note: it uses ISO-8859-15 encoding); 
+
+2. Obtain a list of files:
+```
+python mycocosm_genome_downloader.py --getxml
+```
+The list of files is stored as `MycoCosm_data.xml` (Note: this is ~40Mb file which may take a long time to download. After downloading, it is re-formatted to be human-readable).
+
+If there is already a file called `MycoCosm_data.xml` in the output folder, it will be updated with any missing data.
+
+Both these files will be stored in the folder specified by the `--outputfolder` argument (default: 'output'). You will need your credentials to retrieve the file list.
 
 
 ## Download data

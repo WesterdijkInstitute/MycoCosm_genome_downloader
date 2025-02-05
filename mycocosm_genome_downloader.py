@@ -228,6 +228,7 @@ def JGI_login(cookie_path):
         return True
 
 
+# BUG: doesn't work anymore; they put an 'are you a human' verification...
 def get_JGI_genome_list(outputfolder):
     cmd = []
     cmd.append("curl")
